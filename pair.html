@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WhatsApp Bot Pairing</title>
+<style>
+  :root { --bg:#0b141a; --card:#111b21; --line:#233138; --txt:#e9edef; --mute:#8696a0; --green:#25d366; --red:#f15c6d; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+         background:var(--bg); color:var(--txt); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; padding:16px; }
+  .card { width:100%; max-width:420px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:24px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { color:var(--mute); font-size:14px; margin:0 0 20px; }
+  label { display:block; font-size:13px; color:var(--mute); margin:14px 0 6px; }
+  input { width:100%; padding:13px 14px; border-radius:10px; border:1px solid var(--line); background:#0b141a; color:var(--txt); font-size:16px; outline:none; }
+  input:focus { border-color:var(--green); }
+  button { width:100%; margin-top:18px; padding:14px; border:0; border-radius:10px; background:var(--green); color:#04210f; font-weight:700; font-size:16px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .code { margin-top:20px; text-align:center; padding:18px; border:1px dashed var(--green); border-radius:12px; display:none; }
+  .code .c { font-size:34px; letter-spacing:4px; font-weight:800; color:var(--green); font-family:ui-monospace,Menlo,monospace; }
+  .code small { display:block; color:var(--mute); margin-top:10px; line-height:1.5; font-size:13px; }
+  .msg { margin-top:14px; font-size:14px; display:none; }
+  .err { color:var(--red); }
+  .ok { color:var(--green); }
+  .copy { background:transparent; color:var(--green); border:1px solid var(--green); margin-top:12px; padding:9px; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🤖 WhatsApp Bot Pairing</h1>
+  <p class="sub" id="sub">Bot එක ඔයාගේ WhatsApp එකට link කරන්න</p>
+
+  <div id="form">
+    <label for="num">WhatsApp number (country code එක්ක, + නැතුව)</label>
+    <input id="num" type="tel" inputmode="numeric" placeholder="94771234567" autocomplete="off">
+    <div id="pwWrap" style="display:none">
+      <label for="pw">Password</label>
+      <input id="pw" type="password" autocomplete="off">
+    </div>
+    <button id="btn">Pairing code ගන්න</button>
+  </div>
+
+  <div class="code" id="codeBox">
+    <div class="c" id="code">----</div>
+    <button class="copy" id="copyBtn">Copy</button>
+    <small>WhatsApp → Linked devices → Link a device →<br><b>Link with phone number instead</b> → මේ code එක දාන්න</small>
+  </div>
+
+  <div class="msg" id="msg"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id)
+const show = (el, v = true) => el.style.display = v ? 'block' : 'none'
+
+function setMsg(text, cls) {
+  const m = $('msg'); m.textContent = text; m.className = 'msg ' + (cls || ''); show(m, !!text)
+}
+
+async function status() {
+  try {
+    const s = await (await fetch('/status')).json()
+    show($('pwWrap'), s.needsPassword)
+    if (s.registered && s.connected) {
+      show($('form'), false); show($('codeBox'), false)
+      $('sub').textContent = ''
+      setMsg('✅ Bot එක WhatsApp එකට connect වෙලා තියෙනවා!', 'ok')
+      return true
+    }
+    if (s.registered && !s.connected) setMsg('Connect වෙනවා...', '')
+  } catch {}
+  return false
+}
+
+$('btn').onclick = async () => {
+  const number = $('num').value.replace(/\D/g, '')
+  if (number.length < 8) return setMsg('Number එක හරියට දාන්න (උදා: 94771234567)', 'err')
+  $('btn').disabled = true; setMsg('Code එක ඉල්ලනවා...', '')
+  try {
+    const r = await fetch('/pair', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ number, password: $('pw').value })
+    })
+    const d = await r.json()
+    if (!r.ok) throw new Error(d.error || 'Failed')
+    $('code').textContent = d.code
+    show($('codeBox'))
+    setMsg('Code එක විනාඩි කිහිපයක් විතරයි වලංගු. ඉක්මනින් WhatsApp එකේ දාන්න.', '')
+  } catch (e) {
+    setMsg('❌ ' + e.message, 'err')
+  } finally {
+    $('btn').disabled = false
+  }
+}
+
+$('copyBtn').onclick = () => {
+  navigator.clipboard?.writeText($('code').textContent.replace('-', ''))
+  $('copyBtn').textContent = 'Copied ✓'
+  setTimeout(() => $('copyBtn').textContent = 'Copy', 1500)
+}
+
+status()
+setInterval(status, 4000)
+</script>
+</body>
+</html>
